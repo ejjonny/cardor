@@ -14,6 +14,7 @@ fn main() {
     let track_padding = 0.5;
     let trailing_padding = 1.25;
     let track_punch_radius = 0.1;
+    let full_card_width = 14.25;
     let path = FileDialog::new()
         .set_location("~/Downloads")
         .add_filter("PNG Image", &["png"])
@@ -73,7 +74,13 @@ fn main() {
     for row in 0..rows {
         let row_y = row_height + (row_height * row as f64);
         let left_track_punch = Circle::new(Point::new(leading_padding, row_y), track_punch_radius);
-        let right_track_punch = Circle::new(Point::new(leading_padding + track_padding + column_width * (columns as f64), row_y), track_punch_radius);
+        let right_track_punch = Circle::new(
+            Point::new(
+                leading_padding + track_padding + column_width * (columns as f64),
+                row_y,
+            ),
+            track_punch_radius,
+        );
         punches.push(left_track_punch);
         punches.push(right_track_punch);
     }
@@ -88,15 +95,24 @@ fn main() {
             }
         }
     }
-    let path = kurbo::BezPath::from_vec(
-        punches
-            .iter()
-            .map(|punch| punch.path_elements(0.00001))
-            .flat_map(|i| i)
-            .collect(),
-    );
+    let tolerance = 0.00001;
+    let elements: Vec<PathEl> = punches
+        .iter()
+        .map(|punch| punch.path_elements(tolerance))
+        .flat_map(|i| i)
+        .collect();
+    // elements.extend(
+    //     Rect::new(0., 0., full_card_width, (row_height * (rows + 1) as f64))
+    //         .path_elements(tolerance),
+    // );
+    let card_rect: Vec<PathEl> = Rect::new(0., 0., full_card_width, (row_height * (rows + 1) as f64))
+        .path_elements(tolerance)
+        .collect();
+    let card_path = BezPath::from_vec(card_rect);
+    let path = kurbo::BezPath::from_vec(elements);
 
-    let card_width = leading_padding + track_padding + ((column_width) * columns as f64) + trailing_padding;
+    let card_width =
+        leading_padding + track_padding + ((column_width) * columns as f64) + trailing_padding;
     let card_height = row_height * (rows + 1) as f64;
     let svg = path.to_svg();
     let mut svg_document = String::new();
@@ -105,18 +121,24 @@ fn main() {
         <!DOCTYPE html>
         <html>
         <body>
-        "
+        ",
     );
-    let svg_bounds = format!("<svg viewBox=\"0 0 {} {h}\" xmlns=\"http://www.w3.org/2000/svg\">", card_width, h = card_height);
+    let svg_bounds = format!(
+        "<svg viewBox=\"0 0 {} {h}\" xmlns=\"http://www.w3.org/2000/svg\">",
+        card_width,
+        h = card_height
+    );
     svg_document.push_str(svg_bounds.as_str());
     let path_string = format!("<path d=\"{}\" stroke=\"none\" fill=\"black\" />", svg);
     svg_document.push_str(path_string.as_str());
+    let card_path_string = format!("<path d=\"{}\" stroke=\"black\" fill=\"none\" stroke-width=\"0.05\"/>", card_path.to_svg());
+    svg_document.push_str(card_path_string.as_str());
     svg_document.push_str(
         "
         </svg>
         </body>
         </html>
-        "
+        ",
     );
     let output_file_path = FileDialog::new()
         // .set_location("~/Downloads")
